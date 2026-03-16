@@ -1,0 +1,22 @@
+---
+const today = new Date();
+---
+
+<footer>
+	<p>&copy; {today.getFullYear()} Building Wayfinder. Built with <a href="https://astro.build/">Astro</a>.</p>
+</footer>
+<style>
+	footer {
+		border-top: 1px solid var(--border);
+		padding: 2em 1em;
+		text-align: center;
+		color: var(--text-secondary);
+		font-size: 0.875em;
+	}
+	footer a {
+		color: var(--text-secondary);
+	}
+	footer a:hover {
+		color: var(--accent);
+	}
+</style>

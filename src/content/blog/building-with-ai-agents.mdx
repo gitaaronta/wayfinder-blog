@@ -1,0 +1,181 @@
+---
+title: "Building a Travel App with AI Agents: Introducing the Project OS"
+description: "What if your development workflow had specialist agents for spec, architecture, building, review, and QA — all coordinated automatically? Here's how we're building Wayfinder."
+pubDate: 2026-03-16
+---
+
+What if your development workflow had specialist agents for spec writing, architecture, implementation, code review, and QA — all coordinated through a set of simple commands?
+
+That's the idea behind Project OS, the methodology we're using to build Wayfinder from scratch. And in our first session, we went from an empty directory to a fully functional onboarding flow — 12 tasks completed, all acceptance criteria passing.
+
+This post covers what Wayfinder is, how Project OS works, and what happened when we put the two together.
+
+## What is Wayfinder?
+
+Wayfinder is a personalized, real-time travel companion app for iOS. The core idea: existing travel apps are fragmented (one for flights, one for hotels, one for restaurants, one for maps) and generic (everyone gets the same top-10 lists).
+
+Wayfinder is different. It knows your preferences — that you prefer hole-in-the-wall ramen shops over tourist traps, that you like walking neighborhoods at a slow pace, that you're vegetarian. It understands your real-time context — your location, the time of day, the weather, how far you've walked. And it proactively surfaces recommendations that make sense for *you*, right now.
+
+The tech stack:
+
+- **iOS**: SwiftUI + SwiftData (native, because location and battery performance matter)
+- **Backend**: Bun + Hono + Drizzle ORM (TypeScript, fast, lightweight)
+- **Database**: Postgres + pgvector (one database for both relational data and vector search)
+- **AI**: Claude Sonnet for chat, Claude Haiku for re-ranking, Voyage-3-large for embeddings
+- **Maps data**: Overture Maps (free, open) + Apple MapKit (free on iOS)
+
+Budget target: under $50/month for hosting, LLM calls, and APIs combined. Solo developer. Ship to the App Store.
+
+## What is Project OS?
+
+Project OS is a structured development workflow built on top of Claude Code. Instead of prompting an AI to "build me an app" and hoping for the best, Project OS breaks the development process into five stages with specialized agents at each step.
+
+The key insight: **structured development beats vibes-based prompting**. When you give an AI a clear role, explicit inputs, and defined outputs, the quality of the work goes up dramatically.
+
+### The 7 Agents
+
+Each agent has a specific job and a specific perspective:
+
+1. **Orchestrator** — Routes work to the right agent, maintains state, resolves conflicts
+2. **Spec Agent** — Writes detailed feature specs with user stories, acceptance criteria, and edge cases
+3. **Architect Agent** — Designs technical architecture, makes technology decisions, defines data models
+4. **Builder Agent** — Implements code following the spec and architecture exactly
+5. **Reviewer Agent** — Reviews code for correctness, security, performance, and adherence to spec
+6. **QA Agent** — Tests against acceptance criteria, finds edge cases, verifies the build
+7. **Ops Agent** — Handles deployment, monitoring, and infrastructure
+
+### The 5 Commands
+
+Everything happens through five slash commands:
+
+- `/start-project` — Bootstrap a new project. Generates PROJECT.md with goals, constraints, success metrics, and budget.
+- `/plan-feature` — Plan a feature end-to-end. Produces SPEC.md (what to build), ARCHITECTURE.md (how to build it), and TASKS.md (ordered work units).
+- `/build-task` — Execute a single task. The Builder writes code, the Reviewer checks it, the QA validates acceptance criteria.
+- `/review-task` — Deep code review of a completed task.
+- `/ship-check` — Pre-deployment verification across all acceptance criteria.
+
+### The Memory Files
+
+The real power of Project OS is the `agent-memory/` directory — a set of living documents that serve as the single source of truth:
+
+- **PROJECT.md** — Goals, users, constraints, budget, non-goals
+- **SPEC.md** — Feature specifications with acceptance criteria
+- **ARCHITECTURE.md** — System design, data models, API contracts
+- **TASKS.md** — Ordered task list with dependencies and status
+- **DECISIONS.md** — Architecture Decision Records (ADRs) with rationale and tradeoffs
+- **STATE.md** — Current project status, what's done, what's next
+- **EVAL.md** — Quality metrics and test results
+
+These files replace traditional documentation. They're always current because the agents update them as they work. They're always consistent because every agent reads from and writes to the same source.
+
+## Session 1: From Idea to Onboarding
+
+Here's what actually happened in our first development session.
+
+### Step 1: /start-project
+
+We ran `/start-project` with the Wayfinder concept. The Spec Agent generated PROJECT.md in about 60 seconds, including:
+
+- Five measurable success metrics (>70% recommendation relevance, 3+ daily interactions, etc.)
+- Four hard constraints (offline support, privacy, API cost budget, iOS-first)
+- Five explicit non-goals (not a booking engine, not a social network)
+- Budget breakdown ($10-20/mo hosting, $50/mo at 30 DAU for LLM calls)
+
+### Step 2: /plan-feature for Onboarding
+
+Next, we planned the onboarding feature. The agents produced 17 architecture decisions and 12 ordered tasks. Here's a sample decision:
+
+> **DEC-010: Preference data model — flat enums, not free text**
+>
+> Preferences use predefined enum values (10 interest categories, 10 cuisine types, 5 dietary restrictions, 3 pace levels, 3 budget levels) rather than free-text input.
+>
+> *Rationale:* Structured data enables direct filtering and embedding without NLP parsing. Easier to map to place attributes. UI is faster (taps vs. typing).
+>
+> *Tradeoff:* Less granularity than free-text. "I love hole-in-the-wall ramen shops" becomes `{cuisines: ["japanese"], budgetLevel: "budget"}`. Chat interface can capture nuance later.
+
+This is the kind of decision that seems obvious in retrospect but saves hours of rework if you get it wrong. Free-text preferences sound appealing until you try to map them to database queries and recommendation filters.
+
+### Step 3: Building 12 Tasks
+
+The task list for onboarding looked like this:
+
+| # | Task | Size |
+|---|------|------|
+| 1 | Scaffold backend project | Small |
+| 2 | Scaffold iOS project | Small |
+| 3 | Database schema — users + preferences | Small |
+| 4 | Auth — Sign in with Apple | Medium |
+| 5 | Backend preferences API | Small |
+| 6 | iOS Travel Style screen | Medium |
+| 7 | iOS Food Preferences screen | Small |
+| 8 | iOS Budget screen | Small |
+| 9 | iOS Trip Setup screen | Medium |
+| 10 | iOS onboarding flow + backend sync | Medium |
+| 11 | Settings — Edit preferences | Small |
+| 12 | Backend trips endpoint | Small |
+
+Each task has explicit acceptance criteria. For example, Task 6 (Travel Style screen) required:
+
+- User can select from 3 pace levels (relaxed, moderate, fast)
+- User can select multiple interests from 10 categories
+- Screen is skippable with sensible defaults
+- VoiceOver and Dynamic Type support
+
+The Builder implemented each task in order. After each task, the Reviewer checked the code and the QA agent verified acceptance criteria. All 12 tasks completed in a single session.
+
+### What We Built
+
+The result is a complete onboarding system. On the backend: a Hono API with Sign in with Apple authentication, JWT sessions, preference storage, and trip management. On iOS: a SwiftUI app with a sign-in screen, four onboarding screens, a main content view, and a settings screen for editing preferences.
+
+Here's a taste of how the preference model looks in Swift:
+
+```swift
+enum TravelPace: String, Codable, CaseIterable {
+    case relaxed, moderate, fast
+}
+
+enum InterestCategory: String, Codable, CaseIterable {
+    case history, art, food, nature, nightlife
+    case shopping, architecture, music, sports, local
+}
+
+enum BudgetLevel: String, Codable, CaseIterable {
+    case budget, moderate, luxury
+}
+```
+
+Clean enums. Each maps directly to a database column and a recommendation filter. No NLP parsing needed, no ambiguity, no "what did the user mean by 'affordable'?" — just structured data that flows cleanly from UI taps to database queries to embedding vectors.
+
+The onboarding flow itself is four screens, all skippable, designed to complete in under 60 seconds:
+
+1. **Travel Style** — Pick your pace (relaxed/moderate/fast) and tap interests
+2. **Food Preferences** — Select cuisines and dietary restrictions
+3. **Budget** — Choose your spending level
+4. **Trip Setup** — Set your destination and dates
+
+Every screen has VoiceOver labels and Dynamic Type support. Accessibility from day one, not as an afterthought.
+
+## Why This Approach Works
+
+After completing Phase 1, a few things stand out about the Project OS workflow:
+
+**Decisions are documented before code is written.** Every architecture choice has a rationale and explicit tradeoffs recorded in DECISIONS.md. When we revisit "why did we choose Sign in with Apple only?" in three months, the answer is there with context: it's iOS-only MVP, Apple requires it if any social login is offered, and it's the simplest auth flow.
+
+**Tasks have clear boundaries.** Each task is small enough to complete in one shot, with acceptance criteria that can be objectively verified. No ambiguous "make the onboarding nice" — instead, specific criteria like "screen is skippable with sensible defaults" and "completes in under 60 seconds."
+
+**The memory files are the documentation.** There's no separate wiki to update, no Notion pages to keep in sync, no README that's six months out of date. The agent-memory files *are* the documentation, and they're updated as part of every task.
+
+**Structured data beats free text.** This applies both to the app's preference model (enums over text input) and to the development process itself (structured commands over freeform prompts).
+
+## What's Next
+
+Phase 2 is the intelligence layer — the part that makes Wayfinder more than a pretty onboarding flow. Here's what's coming:
+
+- **Places data pipeline**: Download Overture Maps data, parse it, generate embeddings with Voyage-3-large, load into Postgres with pgvector
+- **Recommendation engine**: Spatial filtering + semantic matching + LLM re-ranking, all within a 2-second response time budget
+- **Chat interface**: Claude Sonnet with streaming, context-aware conversations that reference actual nearby places
+- **Feedback loop**: "Love" and "not my style" signals that incrementally adjust your taste embedding
+
+14 tasks. 4 large, 6 medium, 4 small. The critical path runs through the data pipeline — we can't recommend places we haven't indexed.
+
+Follow along as we build Wayfinder from zero to the App Store. Next post: how we're turning Overture Maps data into a semantic search index.

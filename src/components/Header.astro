@@ -1,0 +1,52 @@
+---
+import { SITE_TITLE } from '../consts';
+import HeaderLink from './HeaderLink.astro';
+---
+
+<header>
+	<nav>
+		<a class="site-title" href="/">{SITE_TITLE}</a>
+		<div class="nav-links">
+			<HeaderLink href="/blog">Posts</HeaderLink>
+			<HeaderLink href="/about">About</HeaderLink>
+			<a href="/rss.xml" target="_blank" title="RSS Feed">RSS</a>
+		</div>
+	</nav>
+</header>
+<style>
+	header {
+		border-bottom: 1px solid var(--border);
+		background: var(--bg);
+	}
+	nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		max-width: 680px;
+		margin: 0 auto;
+		padding: 1em;
+	}
+	.site-title {
+		font-weight: 700;
+		font-size: 1.1em;
+		color: var(--text);
+		text-decoration: none;
+	}
+	.site-title:hover {
+		text-decoration: none;
+		color: var(--accent);
+	}
+	.nav-links {
+		display: flex;
+		gap: 1.5em;
+	}
+	.nav-links a {
+		color: var(--text-secondary);
+		text-decoration: none;
+		font-size: 0.95em;
+	}
+	.nav-links a:hover,
+	.nav-links a.active {
+		color: var(--accent);
+	}
+</style>

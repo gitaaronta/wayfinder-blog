@@ -1,0 +1,65 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { SITE_TITLE } from '../consts';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead
+			title={`About | ${SITE_TITLE}`}
+			description="About the Building Wayfinder engineering blog"
+		/>
+		<style>
+			.about {
+				max-width: 680px;
+				margin: 0 auto;
+			}
+		</style>
+	</head>
+	<body>
+		<Header />
+		<main>
+			<div class="about">
+				<h1>About This Blog</h1>
+				<p>
+					<strong>Building Wayfinder</strong> is a technical engineering blog documenting the
+					real-time build of Wayfinder, a personalized travel companion app for iOS.
+				</p>
+
+				<h2>What is Wayfinder?</h2>
+				<p>
+					Wayfinder is a context-aware travel companion that adapts to your preferences,
+					location, and surroundings to deliver relevant recommendations throughout your journey.
+					It combines structured user preferences with semantic search (pgvector), LLM-powered
+					re-ranking (Claude), and real-time context signals like location, weather, and time of day.
+				</p>
+
+				<h2>What is Project OS?</h2>
+				<p>
+					Every feature of Wayfinder is built using Project OS, a structured development workflow
+					that uses specialist AI agents for spec writing, architecture, building, code review, and
+					QA. This blog documents both the app itself and the methodology used to build it.
+				</p>
+
+				<h2>The Stack</h2>
+				<ul>
+					<li><strong>iOS:</strong> SwiftUI + SwiftData</li>
+					<li><strong>Backend:</strong> Bun + Hono + Drizzle ORM</li>
+					<li><strong>Database:</strong> Postgres + pgvector</li>
+					<li><strong>AI:</strong> Claude (chat + re-ranking) + Voyage (embeddings)</li>
+					<li><strong>Maps:</strong> Overture Maps + Apple MapKit</li>
+				</ul>
+
+				<h2>Who</h2>
+				<p>
+					Built by a solo developer using Claude Code with the Project OS methodology.
+					Follow along as we go from zero to App Store.
+				</p>
+			</div>
+		</main>
+		<Footer />
+	</body>
+</html>
