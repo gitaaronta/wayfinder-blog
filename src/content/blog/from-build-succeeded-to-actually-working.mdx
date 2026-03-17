@@ -1,0 +1,119 @@
+---
+title: "From BUILD SUCCEEDED to Actually Working: The Testing Gap in AI-Generated Code"
+description: "We built 34 tasks across 3 phases — all compiled perfectly. Then we ran it on a real device. Here's what broke and how we fixed our development process."
+pubDate: 2026-03-16
+---
+
+Here's an uncomfortable truth about building with AI agents: **BUILD SUCCEEDED is not the same as "it works."**
+
+We built Wayfinder — a travel companion app with an iOS client, a Bun/Hono backend, and AI-powered recommendations — across 34 tasks in three phases. Every single task passed compilation. The Xcode build succeeded. The backend compiled clean. The TypeScript type-checked. By every automated signal, we were done.
+
+Then we ran it on a real iPhone.
+
+## What Broke
+
+### 1. Sign in with Apple: Error 1000
+
+The app showed "Signing in..." then failed silently. Three problems stacked on top of each other:
+
+**No entitlements file.** Sign in with Apple requires a `Wayfinder.entitlements` file with `com.apple.developer.applesignin` — AND a `CODE_SIGN_ENTITLEMENTS` build setting pointing to it in both Debug and Release configurations. Our builder agent created the Swift code perfectly (ASAuthorizationController, credential handling, the whole flow) but never created the entitlements file. Why? Because entitlements aren't Swift code. They're Xcode project configuration. The build succeeds without them — you just get a runtime error.
+
+**Backend only accepted dev tokens.** The `APPLE_AUTH_BYPASS=true` mode only handled tokens starting with `dev_`. When a real Apple identity token came in (a proper JWT signed by Apple), the verification tried to validate the signature against Apple's public keys — which is correct for production but unnecessary for local development. We added a fallback that decodes the JWT payload without verifying the signature in dev mode.
+
+**Backend wasn't reachable.** Which brings us to...
+
+### 2. Cannot Connect to Server
+
+The iOS app's `AuthService` had `private static let baseURL = "http://localhost:3001"` hardcoded. Three problems:
+
+**localhost doesn't work on a real device.** The iPhone can't reach your Mac's localhost. You need the Mac's LAN IP (`192.168.x.x`). We added a `#if targetEnvironment(simulator)` guard:
+
+```swift
+#if targetEnvironment(simulator)
+private static let baseURL = "http://localhost:3002"
+#else
+private static let baseURL = "http://192.168.3.203:3002"
+#endif
+```
+
+**Two services had different URLs.** `AuthService` had its own hardcoded URL, separate from `APIClient`. So when we fixed one, the other was still broken. Classic duplication bug — but one that no compiler catches.
+
+**App Transport Security blocked HTTP.** iOS blocks insecure HTTP connections by default. We initially set `NSAllowsLocalNetworking = true` in Info.plist, thinking that would cover local development. It doesn't — `NSAllowsLocalNetworking` only allows connections to `localhost` and `127.0.0.1`, not LAN IPs like `192.168.3.203`. We needed `NSAllowsArbitraryLoads = true` for development.
+
+**Server was bound to localhost.** Even after fixing the iOS side, the Bun server was listening on `localhost` only (`127.0.0.1`), not on all interfaces. Added `hostname: "0.0.0.0"` to make it reachable from the network.
+
+### 3. "No Recommendations Yet"
+
+The Explore tab showed an empty state even after signing in successfully. The recommendations API was working perfectly — we'd tested it with curl. But:
+
+**The user wasn't in Istanbul.** Our places database had 9,974 Istanbul venues. The recommendation engine filters by radius (2km default). The user was in a different country. Zero places within 2km = empty results.
+
+This isn't a bug — it's a **missing product feature**. Wayfinder should work as a pre-trip planner, not just an in-destination guide. We added fallback coordinates: if the user is more than 5° from the loaded data, the app automatically uses the trip destination coordinates.
+
+### 4. Keyboard Blocks Tab Bar
+
+The Chat tab has a text input. When the keyboard appears on iPhone, it pushes the view up — but the tab bar was hidden behind the keyboard with no way to dismiss it and switch tabs. We added:
+
+- A "Done" button in the keyboard toolbar
+- Keyboard dismissal on tab switch via `UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder)...)`
+- `scrollDismissesKeyboard(.interactively)` was already there but not enough alone
+
+## Why AI-Generated Code Has This Gap
+
+Every one of these issues has the same root cause: **the builder agent verified compilation, not runtime behavior.**
+
+When you build software manually, you run it after every change. You tap the button. You see the error. You fix it. The feedback loop is tight and visual.
+
+When an AI agent builds 34 tasks in sequence, it verifies each one by running `xcodebuild` or `bun build`. These tools check syntax, types, imports, and linking — everything a compiler can check. They cannot check:
+
+- Whether the app can actually reach the backend from a real device
+- Whether Xcode project configuration (entitlements, capabilities, ATS) is correct
+- Whether the data the app needs exists in the database for the user's location
+- Whether the UX works (keyboard covering UI, empty states, error handling)
+
+**BUILD SUCCEEDED checks the code. It doesn't check the product.**
+
+## How We Fixed Our Process
+
+We added two new rules to Project OS that every future project will inherit:
+
+### 1. Networking & Runtime Checklist (builder-agent.md)
+
+After any task involving client-server communication:
+
+1. **No hardcoded base URLs.** Use a shared config with `#if targetEnvironment(simulator)`. Grep the *entire* codebase for `localhost`, `127.0.0.1`, and port numbers — they must ALL match.
+2. **App Transport Security.** `NSAllowsArbitraryLoads = true` in Info.plist for dev. `NSAllowsLocalNetworking` does NOT cover LAN IPs.
+3. **Entitlements.** If using Sign in with Apple, Push Notifications, etc. — create the `.entitlements` file AND add `CODE_SIGN_ENTITLEMENTS` to BOTH Debug and Release build settings.
+4. **Server binding.** Backend must listen on `0.0.0.0`, not localhost.
+5. **E2E curl tests.** Test every endpoint from the LAN IP before declaring it done.
+
+### 2. Runtime Verification Gate (build-task.md)
+
+We added a new mandatory gate between Self-Review and QA:
+
+> **No completion without runtime verification** (for networking/device tasks). Curl endpoints from the LAN IP, verify no hardcoded URLs, check entitlements and ATS config.
+
+"BUILD SUCCEEDED" without runtime verification is now treated as a FAIL for any task involving networking or device capabilities.
+
+## The Broader Lesson
+
+AI-assisted development is incredible for velocity. We built a complete travel app — iOS client, backend API, AI-powered recommendations, streaming chat, weather integration, itinerary planning — in a single session. 34 tasks. Three phases. ~50 files.
+
+But velocity without verification is just generating bugs faster.
+
+The fix isn't to slow down. It's to **make verification part of the automated workflow**, not an afterthought. Our Project OS now enforces runtime checks as a gate — you can't mark a networking task complete without proving it works from a real device's perspective.
+
+Build fast. But test from the user's chair, not the compiler's.
+
+## Current Status
+
+As of today, Wayfinder is fully functional:
+
+- **9,974 Istanbul places** loaded from Overture Maps
+- **AI recommendations** via Together.ai (Llama 3.3 70B for re-ranking, DeepSeek V3 for chat)
+- **Streaming chat** with context-aware responses referencing actual nearby places
+- **Weather-aware itineraries** with 5 time slots per day
+- **Pre-trip mode** — works before you arrive at your destination
+- **Cost: ~$0.013/user/day** (75% cheaper than original Anthropic plan)
+
+Next: TestFlight beta, production deployment, and the recommendation engine's semantic search layer.
